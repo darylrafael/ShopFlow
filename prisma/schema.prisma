@@ -123,7 +123,7 @@ model OperationTemplate {
   productId                String  @map("product_id") @db.Uuid
   sequenceNumber           Int     @map("sequence_number")
   operationType            String  @map("operation_type") @db.VarChar(50)
-  eligibleMachineTypes     String[]
+  eligibleMachineTypes     String[] @map("eligible_machine_types")
   estimatedDurationMinutes Int     @map("estimated_duration_minutes")
   description              String?
 

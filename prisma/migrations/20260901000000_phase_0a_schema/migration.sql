@@ -1,4 +1,4 @@
-Loaded Prisma config from prisma.config.ts.
+
 
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
@@ -33,7 +33,7 @@ CREATE TABLE "machines" (
     "org_id" UUID NOT NULL,
     "name" VARCHAR(100) NOT NULL,
     "type" VARCHAR(50) NOT NULL,
-    "capabilities" TEXT[],
+    "capabilities" TEXT[] NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "machines_pkey" PRIMARY KEY ("id")
@@ -79,7 +79,7 @@ CREATE TABLE "operation_templates" (
     "product_id" UUID NOT NULL,
     "sequence_number" INTEGER NOT NULL,
     "operation_type" VARCHAR(50) NOT NULL,
-    "eligibleMachineTypes" TEXT[],
+    "eligible_machine_types" TEXT[] NOT NULL,
     "estimated_duration_minutes" INTEGER NOT NULL,
     "description" TEXT,
 
@@ -278,8 +278,8 @@ ALTER TABLE "activity_log" ADD CONSTRAINT "activity_log_org_id_fkey" FOREIGN KEY
 
 
 -- Add CHECK constraints
-ALTER TABLE "machines" ADD CONSTRAINT "capabilities_nonempty" CHECK (array_length("capabilities", 1) > 0);
-ALTER TABLE "operation_templates" ADD CONSTRAINT "eligible_types_nonempty" CHECK (array_length("eligibleMachineTypes", 1) > 0);
+ALTER TABLE "machines" ADD CONSTRAINT "capabilities_nonempty" CHECK (cardinality("capabilities") > 0);
+ALTER TABLE "operation_templates" ADD CONSTRAINT "eligible_types_nonempty" CHECK (cardinality("eligible_machine_types") > 0);
 ALTER TABLE "operation_templates" ADD CONSTRAINT "duration_positive" CHECK ("estimated_duration_minutes" > 0);
 ALTER TABLE "job_operations" ADD CONSTRAINT "duration_positive" CHECK ("estimated_duration_minutes" > 0);
 ALTER TABLE "jobs" ADD CONSTRAINT "quantity_positive" CHECK ("quantity" > 0);
