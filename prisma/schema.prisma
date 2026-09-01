@@ -1,15 +1,251 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Priority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum JobStatus {
+  draft
+  released
+  scheduled
+  in_progress
+  completed
+  on_hold
+  cancelled
+}
+
+enum OperationStatus {
+  pending
+  running
+  completed
+  blocked
+  cancelled
+}
+
+enum ScheduleStatus {
+  active
+  superseded
+}
+
+enum UserRole {
+  owner
+  operator
+}
+
+model Organization {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(200)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  machines         Machine[]
+  setupTransitions SetupTransition[]
+  products         Product[]
+  jobs             Job[]
+  schedules        Schedule[]
+  users            User[]
+  activityLogs     ActivityLog[]
+
+  @@map("organizations")
+}
+
+model Machine {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  name         String   @db.VarChar(100)
+  type         String   @db.VarChar(50)
+  capabilities String[] // TEXT[]
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization            @relation(fields: [orgId], references: [id])
+  unavailabilities MachineUnavailability[]
+  setupTransitions SetupTransition[]
+  scheduleAssignments ScheduleAssignment[]
+
+  @@index([orgId])
+  @@map("machines")
+}
+
+model MachineUnavailability {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  machineId String    @map("machine_id") @db.Uuid
+  startTime DateTime  @map("start_time") @db.Timestamptz
+  endTime   DateTime? @map("end_time") @db.Timestamptz
+  reason    String    @db.VarChar(200)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([machineId, startTime])
+  @@map("machine_unavailability")
+}
+
+model SetupTransition {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String  @map("org_id") @db.Uuid
+  machineId       String? @map("machine_id") @db.Uuid
+  fromOpType      String? @map("from_op_type") @db.VarChar(50)
+  toOpType        String  @map("to_op_type") @db.VarChar(50)
+  durationMinutes Int     @map("duration_minutes")
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  machine      Machine?     @relation(fields: [machineId], references: [id])
+
+  @@unique([orgId, machineId, fromOpType, toOpType])
+  @@map("setup_transitions")
+}
+
+model Product {
+  id     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId  String  @map("org_id") @db.Uuid
+  name   String  @db.VarChar(200)
+  sku    String? @db.VarChar(50)
+
+  organization       Organization        @relation(fields: [orgId], references: [id])
+  operationTemplates OperationTemplate[]
+  jobs               Job[]
+
+  @@unique([orgId, sku])
+  @@map("products")
+}
+
+model OperationTemplate {
+  id                       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId                String  @map("product_id") @db.Uuid
+  sequenceNumber           Int     @map("sequence_number")
+  operationType            String  @map("operation_type") @db.VarChar(50)
+  eligibleMachineTypes     String[]
+  estimatedDurationMinutes Int     @map("estimated_duration_minutes")
+  description              String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, sequenceNumber])
+  @@map("operation_templates")
+}
+
+model Job {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String    @map("org_id") @db.Uuid
+  jobNumber    String    @map("job_number") @db.VarChar(20)
+  customerName String    @map("customer_name") @db.VarChar(200)
+  productId    String    @map("product_id") @db.Uuid
+  quantity     Int
+  priority     Priority  @default(normal)
+  status       JobStatus @default(draft)
+  dueDate      DateTime  @map("due_date") @db.Timestamptz
+  releaseDate  DateTime? @map("release_date") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz
+
+  organization Organization   @relation(fields: [orgId], references: [id])
+  product      Product        @relation(fields: [productId], references: [id])
+  jobOperations JobOperation[]
+
+  @@unique([orgId, jobNumber])
+  @@index([orgId, status])
+  @@index([orgId, dueDate])
+  @@map("jobs")
+}
+
+model JobOperation {
+  id                       String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId                    String          @map("job_id") @db.Uuid
+  sequenceNumber           Int             @map("sequence_number")
+  operationType            String          @map("operation_type") @db.VarChar(50)
+  eligibleMachineIds       String[]        @map("eligible_machine_ids") @db.Uuid
+  estimatedDurationMinutes Int             @map("estimated_duration_minutes")
+  actualStart              DateTime?       @map("actual_start") @db.Timestamptz
+  actualEnd                DateTime?       @map("actual_end") @db.Timestamptz
+  status                   OperationStatus @default(pending)
+
+  job                 Job                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  scheduleAssignments ScheduleAssignment[]
+
+  @@unique([jobId, sequenceNumber])
+  @@index([jobId, sequenceNumber])
+  @@map("job_operations")
+}
+
+model Schedule {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String         @map("org_id") @db.Uuid
+  version            Int
+  status             ScheduleStatus
+  triggerReason      String         @map("trigger_reason") @db.VarChar(200)
+  algorithm          String         @db.VarChar(50)
+  weightedTardiness  Float          @map("weighted_tardiness")
+  totalSetupMinutes  Int            @map("total_setup_minutes")
+  makespanMinutes    Int            @map("makespan_minutes")
+  numLateJobs        Int            @map("num_late_jobs")
+  machineUtilization Json           @map("machine_utilization") @db.JsonB
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  previousVersionId  String?        @map("previous_version_id") @db.Uuid
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  previousVersion Schedule? @relation("ScheduleHistory", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  nextVersions    Schedule[] @relation("ScheduleHistory")
+
+  scheduleAssignments ScheduleAssignment[]
+
+  @@unique([orgId, version])
+  @@index([orgId, status])
+  @@map("schedules")
+}
+
+model ScheduleAssignment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scheduleId      String   @map("schedule_id") @db.Uuid
+  jobOperationId  String   @map("job_operation_id") @db.Uuid
+  machineId       String   @map("machine_id") @db.Uuid
+  setupStart      DateTime @map("setup_start") @db.Timestamptz
+  processingStart DateTime @map("processing_start") @db.Timestamptz
+  processingEnd   DateTime @map("processing_end") @db.Timestamptz
+
+  schedule     Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  jobOperation JobOperation @relation(fields: [jobOperationId], references: [id])
+  machine      Machine      @relation(fields: [machineId], references: [id])
+
+  @@index([scheduleId, machineId, setupStart])
+  @@index([scheduleId, jobOperationId])
+  @@map("schedule_assignments")
+}
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  email     String   @unique @db.VarChar(255)
+  name      String   @db.VarChar(255)
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+  @@map("users")
+}
+
+model ActivityLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  entityId  String   @map("entity_id") @db.Uuid
+  entityType String  @map("entity_type") @db.VarChar(50)
+  action    String   @db.VarChar(50)
+  userId    String?  @map("user_id") @db.Uuid
+  changes   Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, entityType, entityId])
+  @@map("activity_log")
 }
