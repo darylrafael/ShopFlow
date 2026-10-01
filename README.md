@@ -82,8 +82,12 @@ For a no-card portfolio deployment, use Vercel Hobby for the Next.js application
    - `GEMINI_API_KEY`: optional; leave empty if the AI explanation assistant is not needed.
    - `GEMINI_MODEL`: optional; defaults to `gemini-3.5-flash-lite`.
    - `RESEND_API_KEY`, `SHOPFLOW_EMAIL_FROM`: optional; required only for public email verification and password recovery.
-4. Deploy. `vercel.json` runs Prisma client generation and `prisma migrate deploy` during the Vercel build.
-5. In a one-time local terminal, point `DATABASE_URL` at the Supabase database and run `npm run seed` to load the demo planner data. Do not commit the database URL or any secret.
+4. Run the database migration once from a trusted terminal with the Supabase Session pooler URL:
+   ```bash
+   npx prisma migrate deploy
+   ```
+5. Deploy. `vercel.json` runs Prisma Client generation and the Next.js production build; migrations are kept out of the Vercel build so a pooled database connection cannot hold the deployment open.
+6. In the same trusted terminal, point `DATABASE_URL` at the Supabase database and run `npm run seed` to load the demo planner data. Do not commit the database URL or any secret.
 
 The free tiers are intended for personal/demo use. Supabase may pause low-activity free projects, so resume the project from its dashboard if a recruiter visits after a long period of inactivity.
 
