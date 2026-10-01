@@ -72,10 +72,11 @@ For a managed deployment, the repository also includes a Render Blueprint in `re
 
 For a no-card portfolio deployment, use Vercel Hobby for the Next.js application and a Supabase Free Postgres project for the database:
 
-1. Create a Supabase project and copy its Prisma-compatible **Session pooler** connection string (port `5432`).
+1. Create a Supabase project and copy both Prisma connection strings: use the **Transaction pooler** URL (port `6543`) for `DATABASE_URL`, and the **Session pooler** URL (port `5432`) for `DIRECT_URL`.
 2. Import this repository into Vercel and keep the project on the Hobby plan.
 3. Add these Vercel environment variables for **Production**:
-   - `DATABASE_URL`: the Supabase Session pooler connection string.
+   - `DATABASE_URL`: the Supabase Transaction pooler connection string (port `6543`).
+   - `DIRECT_URL`: the Supabase Session pooler connection string (port `5432`), used for Prisma migrations.
    - `SHOPFLOW_SESSION_SECRET`: a long random secret.
    - `SHOPFLOW_APP_URL`: the Vercel deployment URL.
    - `GEMINI_API_KEY`: optional; leave empty if the AI explanation assistant is not needed.
