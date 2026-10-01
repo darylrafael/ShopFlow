@@ -72,15 +72,23 @@ export async function main() {
     create: { id: '00000000-0000-0000-0000-000000000001', name: 'Development Org' },
   });
 
+  const demoPasswordHash = await hashPassword('ShopFlowDemo!2026');
+
   await prisma.user.upsert({
     where: { email: 'planner@shopflow.local' },
-    update: { orgId: org.id, name: 'Demo Planner', role: 'owner' },
+    update: {
+      orgId: org.id,
+      name: 'Demo Planner',
+      role: 'owner',
+      passwordHash: demoPasswordHash,
+      emailVerifiedAt: new Date(),
+    },
     create: {
       orgId: org.id,
       email: 'planner@shopflow.local',
       name: 'Demo Planner',
       role: 'owner',
-      passwordHash: await hashPassword('ShopFlowDemo!2026'),
+      passwordHash: demoPasswordHash,
       emailVerifiedAt: new Date(),
     },
   });
